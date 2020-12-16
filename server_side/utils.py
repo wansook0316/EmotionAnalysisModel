@@ -7,6 +7,7 @@ import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm, tqdm_notebook
 import gluonnlp as nlp
+import copy
 
 
 class BERTDatasetForTest(Dataset):
@@ -60,16 +61,21 @@ class BERTClassifier(nn.Module):
     
 def get_label_probability(result, label2emotion):
   # result : tensor
-  result = result.tolist()
-  num_results = len(result)
-  key_list = list(Counter(result).keys())
-  emotion_list = list(label2emotion[key] for key in key_list)
+    ret_dict = {emotion : 0 for emotion in list(label2emotion.values())}
 
-  counted_value_list = list(Counter(result).values())
-  prob_value_list = list(counted_value/num_results for counted_value in counted_value_list)
+    result = result.tolist()
+    num_results = len(result)
+    key_list = list(Counter(result).keys())
+    emotion_list = list(label2emotion[key] for key in key_list)
 
-  ret_dict = {emotion_list[i] : prob_value_list[i] for i in range(len(key_list))}
+    counted_value_list = list(Counter(result).values())
+    prob_value_list = list(counted_value/num_results for counted_value in counted_value_list)
 
-  return ret_dict
+    for emotion, prob_value in zip(emotion_list, prob_value_list):
+        ret_dict[emotion] = prob_value
+    # print(ret_dict)
+#   ret_dict = {emotion_list[i] : prob_value_list[i] for i in range(len(key_list))}
+
+    return ret_dict
 
 
