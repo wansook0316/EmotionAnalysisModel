@@ -1,0 +1,23 @@
+# 기본 요구 파일
+click==7.1.2
+Flask==1.1.2
+itsdangerous==1.1.0
+Jinja2==2.11.2
+MarkupSafe==1.1.1
+Werkzeug==1.0.1
+# 이 밑에 Keras 관련 설치한 모듈들 적으시면 됩니다.
+# 번역 관련 module
+google_trans_new
+# ml 관련 module
+mxnet
+gluonnlp
+pandas
+tqdm
+sentencepiece
+torch
+transformers==3
+numpy
+scipy
+
+# kobert
+git+https://git@github.com/SKTBrain/KoBERT.git@master
