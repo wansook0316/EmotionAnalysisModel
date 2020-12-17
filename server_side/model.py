@@ -7,7 +7,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 import gluonnlp as nlp
-from utils import BERTClassifier, BERTDatasetForTest, get_label_probability
+from utils import BERTClassifier, BERTDatasetForTest, get_label_probability, statistics
 from scipy.stats import hmean
 # kobert
 from kobert.utils import get_tokenizer
@@ -62,27 +62,25 @@ multi_model.load_state_dict(torch.load(MODEL_MULTI_DIR, map_location=torch.devic
 
 
 # 실제로 매번 실행될 함수
-def Predict(target):
-    # target : 10개의 문장 list
+def Predict(sentence, info):
+    # sentence : 10개의 문장 list
+    sentence_dataset = BERTDatasetForTest(sentence, tok, max_len, True, False)
+    sentence_dataloader = torch.utils.data.DataLoader(sentence_dataset, batch_size=batch_size, num_workers=1)
 
-    target_dataset = BERTDatasetForTest(target, tok, max_len, True, False)
-    target_dataloader = torch.utils.data.DataLoader(target_dataset, batch_size=batch_size, num_workers=1)
-
-    # Binary Model
-
-    binary_model.eval()
-    for batch_id, (token_ids, valid_length, segment_ids) in enumerate(target_dataloader):
-        token_ids = token_ids.long().to(device)
-        segment_ids = segment_ids.long().to(device)
-        valid_length= valid_length
-        #label = label.long().to(device)
-        binary_out = binary_model(token_ids, valid_length, segment_ids)
+    # # Binary Model
+    # binary_model.eval()
+    # for batch_id, (token_ids, valid_length, segment_ids) in enumerate(sentence_dataloader):
+    #     token_ids = token_ids.long().to(device)
+    #     segment_ids = segment_ids.long().to(device)
+    #     valid_length= valid_length
+    #     #label = label.long().to(device)
+    #     binary_out = binary_model(token_ids, valid_length, segment_ids)
 
 
 
     # Multi Model
     multi_model.eval()
-    for batch_id, (token_ids, valid_length, segment_ids) in enumerate(target_dataloader):
+    for batch_id, (token_ids, valid_length, segment_ids) in enumerate(sentence_dataloader):
         token_ids = token_ids.long().to(device)
         segment_ids = segment_ids.long().to(device)
         valid_length= valid_length
@@ -91,29 +89,53 @@ def Predict(target):
 
 
     # Output Check
-    binary_max_vals, binary_max_indices = torch.max(binary_out, 1)
+    # binary_max_vals, binary_max_indices = torch.max(binary_out, 1)
     multi_max_vals, multi_max_indices = torch.max(multi_out, 1)
 
-    binary_predicted_emotion = list(binary_label2emotion[label] for label in binary_max_indices.tolist())
+    # binary_predicted_emotion = list(binary_label2emotion[label] for label in binary_max_indices.tolist())
     multi_predicted_emotion = list(multi_label2emotion[label] for label in multi_max_indices.tolist())
 
-    print("binary result")
-    for text, emotion in zip(target, binary_predicted_emotion):
-        print(f"{emotion} : {text}")
+    # print("binary result")
+    # for text, emotion in zip(target, binary_predicted_emotion):
+    #     print(f"{emotion} : {text}")
 
     print("multi result")
     for text, emotion in zip(target, multi_predicted_emotion):
         print(f"{emotion} : {text}")
 
     # 결과 확인
-    binary_prob_dict = get_label_probability(binary_max_indices, binary_label2emotion)
+    # binary_prob_dict = get_label_probability(binary_max_indices, binary_label2emotion)
     multi_prob_dict = get_label_probability(multi_max_indices, multi_label2emotion)
+    neg_prob = multi_prob_dict["sadness"]+multi_prob_dict["fear"]+multi_prob_dict["anger"]
+
+    # 성별p * (거주지 p + 직업 + 연령) = 통계치 기반 확률 값
+    gender_info = info["gender"]
+    age_info = int(info["age"])
+    regidences_info = info["regidences"]
+    job_info = info["job"]
+
+    print(statistics["gender"][gender_info])
+    print(statistics["age"][age_info])
+    print(statistics["regidences"][regidences_info])
+    print(statistics["job"][job_info])
+
+    suicide_prob = statistics["gender"][gender_info]*(statistics["age"][age_info] + statistics["regidences"][regidences_info] + statistics["job"][job_info])
 
 
 
-    neg_values = [binary_prob_dict["sadness"], multi_prob_dict["sadness"]+multi_prob_dict["fear"]+multi_prob_dict["anger"]]
-    print(f"neg_values : {neg_values}")
-    result = hmean(neg_values)
+
+
+
+
+
+    # neg_values = [binary_prob_dict["sadness"], multi_prob_dict["sadness"]+multi_prob_dict["fear"]+multi_prob_dict["anger"]]
+    
+    depressed_prob_temp = [8*neg_prob, 2*suicide_prob]
+    print(f"neg_values : {depressed_prob_temp}")
+    # depressed_prob = hmean(depressed_prob_temp)
+    depressed_prob = sum(depressed_prob_temp)/(len(depressed_prob_temp)*5)
+    result = depressed_prob
+
     print(f"우울증 지수는 : {result} 입니다.")
     
     # 결과 리턴 (형태는 기획에 맞춰 조정)
@@ -159,10 +181,41 @@ if __name__ == "__main__":
     #     "제가 도박을 끊지 못한 이유는 명확합니다.",
     #     "빌린돈을 갚아야하는 주기가 짧다보니, 빌려서 매꾸는게 아닌 빌려서 도박을 해서 큰돈을 따야지 매꿀수있는 현실. 크게크게 먹는 사례가 몇번씩 있다보니 매꿔지고 또 생활이 괜찮아지고 또 힘들어지고를 반복.",
     # ]
-    target=[
-        "언젠가부터 남과 끊임없이 비교하게 되었어요. ",
-        "제가 이뤄놓은 것이 일절 없기 때문일지 모릅니다."
-        ]
-    Predict(target)
+    # target=[
+    #     "언젠가부터 남과 끊임없이 비교하게 되었어요. ",
+    #     "제가 이뤄놓은 것이 일절 없기 때문일지 모릅니다."
+    #     ]
+    # target = [
+    #     "기분이 엄청 좋을 것 같다. 당장 먹을 생각부터 한다.",
+    #     "정말 고맙다... 나를 이렇게 진심 어리게 안아주고 위로해 주면 힘이 날 것 같다",
+    #     "진짜 반갑다… 난 완전 잘 지냈는데 친구도 잘 지냈나보네 얼굴 좋아보인다~",
+    #     "정신이 없기도 했고… 생각보다 해야 할 일을 많이 못한 것 같다",
+    #     "내가 사랑하는 사람들과 하루 하루 행복하고 마음 편안하게 살고 있으면 좋겠다!",
+    #     "어릴 때부터 반항심이 많았군. 뭐 이리 세상에 불만이 많았을까… 지금의 나는 예전의 나보다 낫나?",
+    #     "조금 부담스러울 것 같지만 받아들일 것이다. 그래도 내가 책임감 있게 잘 해낼 자신이 있어서.",
+    #     "별 생각 없이 잠에 들었다. ",
+    #     "나처럼 다들 행복해 보이네~ 메리 크리스마스!",
+    #     "반갑다. 오랜만에 얼굴 보니 좋다. 여전하다.",
+    # ]
+
+    target = [
+        "당장은 먹고 싶지 않은데… 무얼 맛있게 먹을 수 있는 상황이 아니에요…",
+        "위로 같은 것으로 제 상황이나 기분이 나아지지 않을 것 같습니다…",
+        "너는 잘 지내는구나? 나는 요즘 매일 매일이 괴롭고 힘들었어… ",
+        "하루 하루가 힘들었는데… 매일 죽고싶다 생각만했습니다. 그런데 이젠 정말 죽어야겠다는 생각이 드네.",
+        "그만 살아도 될 거 같은 생각이 자주 들어요… 제게 10년 후라는 미래가 있을까요?",
+        "어릴 적 나는 지금의 나를 보고 무슨 생각을 할까… 한심하게 보지는 않을까",
+        "거절할 것 같습니다. 저는 결과가 엉망진창인 저를 떠올리고 다시 죽고 싶어질 뿐입니다.",
+        "한참동안 우울과 불안에 휩싸여서 언제쯤이면 죽게 될까. 과연 나는 행복할 수 있는 사람인가. 잠시 쉬는 시간이 생기면 그런 생각을 하다가 잠이 들었다.",
+        "좌절감, 박탈감을 느낄 것 같다.",
+        "쟤는 언제 취직하려나. 아직도 자리 못 잡았나?",
+    ]
+    info={
+        "gender" : "male",
+        "age" : 10,
+        "regidences" : "서울특별시",
+        "job" : "무직, 가사, 학생"
+    }
+    Predict(target, info)
 
 
