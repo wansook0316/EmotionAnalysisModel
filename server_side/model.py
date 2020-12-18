@@ -67,16 +67,6 @@ def Predict(sentence, info):
     sentence_dataset = BERTDatasetForTest(sentence, tok, max_len, True, False)
     sentence_dataloader = torch.utils.data.DataLoader(sentence_dataset, batch_size=batch_size, num_workers=1)
 
-    # # Binary Model
-    # binary_model.eval()
-    # for batch_id, (token_ids, valid_length, segment_ids) in enumerate(sentence_dataloader):
-    #     token_ids = token_ids.long().to(device)
-    #     segment_ids = segment_ids.long().to(device)
-    #     valid_length= valid_length
-    #     #label = label.long().to(device)
-    #     binary_out = binary_model(token_ids, valid_length, segment_ids)
-
-
 
     # Multi Model
     multi_model.eval()
@@ -84,32 +74,24 @@ def Predict(sentence, info):
         token_ids = token_ids.long().to(device)
         segment_ids = segment_ids.long().to(device)
         valid_length= valid_length
-        #label = label.long().to(device)
         multi_out = multi_model(token_ids, valid_length, segment_ids)
 
 
     # Output Check
-    # binary_max_vals, binary_max_indices = torch.max(binary_out, 1)
     multi_max_vals, multi_max_indices = torch.max(multi_out, 1)
 
-    # binary_predicted_emotion = list(binary_label2emotion[label] for label in binary_max_indices.tolist())
     multi_predicted_emotion = list(multi_label2emotion[label] for label in multi_max_indices.tolist())
-
-    # print("binary result")
-    # for text, emotion in zip(target, binary_predicted_emotion):
-    #     print(f"{emotion} : {text}")
 
     print("multi result")
     for text, emotion in zip(target, multi_predicted_emotion):
         print(f"{emotion} : {text}")
 
     # 결과 확인
-    # binary_prob_dict = get_label_probability(binary_max_indices, binary_label2emotion)
     multi_prob_dict = get_label_probability(multi_max_indices, multi_label2emotion)
     neg_prob = multi_prob_dict["sadness"]+multi_prob_dict["fear"]+multi_prob_dict["anger"]
     pos_prob = multi_prob_dict["joy"]
 
-    # 성별p * (거주지 p + 직업 + 연령) = 통계치 기반 확률 값
+    # 성별p * (직업 + 연령) + 거주지1 p * 거주지2 p  = 통계치 기반 확률 값
     gender_info = info["gender"]
     age_info = int(info["age"])
     parcing_regidences = info["regidences"].split("_")
@@ -124,33 +106,15 @@ def Predict(sentence, info):
     print(statistics["job"][job_info])
 
     suicide_prob = statistics["gender"][gender_info]*(statistics["age"][age_info]+statistics["job"][job_info]) + statistics["regidences"][regidences_info1]["total"] * statistics["regidences"][regidences_info1][regidences_info2]
-
-
-
-
-
-
-
-
-    # neg_values = [binary_prob_dict["sadness"], multi_prob_dict["sadness"]+multi_prob_dict["fear"]+multi_prob_dict["anger"]]
     
     depressed_prob_temp = [9*neg_prob, 1*(1-pos_prob)*suicide_prob]
     print(f"neg_values : {depressed_prob_temp}")
-    # depressed_prob = hmean(depressed_prob_temp)
     depressed_prob = sum(depressed_prob_temp)/(len(depressed_prob_temp)*5)
     result = depressed_prob
 
     print(f"우울증 지수는 : {result} 입니다.")
     
-    # 결과 리턴 (형태는 기획에 맞춰 조정)
-    # print(binary_prob_dict.values())
-    # binary_result = hmean(list(binary_prob_dict.values())) # 각 model의 결과를 조화평균함
-    # multi_result = hmean(list(multi_prob_dict.values()))
-
-
-
-
-    # return {'result': result}
+    return {'result': result}
 
 
 if __name__ == "__main__":
