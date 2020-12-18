@@ -83,7 +83,7 @@ def Predict(sentence, info):
     multi_predicted_emotion = list(multi_label2emotion[label] for label in multi_max_indices.tolist())
 
     print("multi result")
-    for text, emotion in zip(target, multi_predicted_emotion):
+    for text, emotion in zip(sentence, multi_predicted_emotion):
         print(f"{emotion} : {text}")
 
     # 결과 확인
